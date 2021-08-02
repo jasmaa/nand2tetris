@@ -17,4 +17,4 @@ if __name__ == '__main__':
 
     bin_lines = assemble(p.lines, p.sym_table)
     with open(out_fname, 'w') as f:
-        f.write('\n'.join(bin_lines))
+        f.write('\n'.join(bin_lines)+'\n')
