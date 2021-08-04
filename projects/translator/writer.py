@@ -7,19 +7,24 @@ class CodeWriter:
     """Translates VM code to Hack assembly.
     """
 
-    def __init__(self, fname: str, f: TextIOWrapper):
-        self.fname = fname
+    def __init__(self, f: TextIOWrapper):
         self.f = f
+        self.fname = ''
         self.label_counters = {}
         self.curr_func_name = ''
+        self.asm = []
+
+    def output(self):
+        """Output ASM to file.
+        """
+        self.f.write('\n'.join(self.asm)+'\n')
 
     def write_arithmetic(self, command: str):
         """Writes translated arithmetic instruction.
         """
-        asm = []
         if command in ['neg', 'not']:
             # Unary command: set M=x
-            asm += [
+            self.asm += [
                 '@SP',
                 'A=M',
                 'A=A-1',
@@ -31,7 +36,7 @@ class CodeWriter:
             ]
         elif command in ['add', 'sub', 'eq', 'gt', 'lt', 'and', 'or']:
             # Binary command: set D=x and M=y
-            asm += [
+            self.asm += [
                 '@SP',
                 'A=M',
                 'A=A-1',
@@ -43,16 +48,13 @@ class CodeWriter:
                 '@SP',
                 'M=D',
             ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def write_pushpop(self, command: CommandType, segment: str, index: int):
         """Writes translated push or pop instruction.
         """
-        asm = []
-
         # Pushing constant
         if segment == 'constant' and command == CommandType.PUSH:
-            asm += [
+            self.asm += [
                 f'@{index}',
                 'D=A',
                 '@SP',
@@ -63,7 +65,6 @@ class CodeWriter:
                 '@SP',
                 'M=D',
             ]
-            self.f.write('\n'.join(asm)+'\n')
             return
 
         # Part 1: generate ASM to get addr into D
@@ -74,7 +75,7 @@ class CodeWriter:
                 'this': 'THIS',
                 'that': 'THAT',
             }
-            asm += [
+            self.asm += [
                 f'@{reg_map[segment]}',
                 'D=M',
                 f'@{index}',
@@ -83,9 +84,9 @@ class CodeWriter:
         elif segment in ['pointer', 'temp']:
             reg_map = {
                 'pointer': 'THIS',
-                'temp': 'R15',
+                'temp': 'R5',
             }
-            asm += [
+            self.asm += [
                 f'@{reg_map[segment]}',
                 'D=A',
                 f'@{index}',
@@ -93,14 +94,14 @@ class CodeWriter:
             ]
         elif segment == 'static':
             sym = f'{self.fname}.{index}'
-            asm += [
+            self.asm += [
                 f'@{sym}',
                 'D=A',
             ]
 
         # Part 2: generate push/pop code
         if command == CommandType.PUSH:
-            asm += [
+            self.asm += [
                 'A=D',
                 'D=M',
                 '@SP',
@@ -112,7 +113,7 @@ class CodeWriter:
                 'M=D',
             ]
         elif command == CommandType.POP:
-            asm += [
+            self.asm += [
                 '@R13',
                 'M=D',
                 '@SP',
@@ -130,29 +131,33 @@ class CodeWriter:
                 'M=D',
             ]
 
-        self.f.write('\n'.join(asm)+'\n')
+    def write_init(self):
+        """Writes system init into beginning of ROM.
+        """
+        self.asm = [
+            '@Sys.init',
+            '0;JMP',
+        ] + self.asm
 
     def write_label(self, label: str):
         """Writes translated label.
         """
-        asm = [
+        self.asm += [
             f'({self.curr_func_name}:{label})',
         ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def write_goto(self, label: str):
         """Writes translated goto.
         """
-        asm = [
+        self.asm += [
             f'@{self.curr_func_name}:{label}',
             '0;JMP',
         ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def write_if(self, label: str):
         """Writes translated if-goto.
         """
-        asm = [
+        self.asm += [
             '@SP',
             'D=M',
             'M=D-1',
@@ -162,18 +167,28 @@ class CodeWriter:
             f'@{self.curr_func_name}:{label}',
             'D;JNE',
         ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def write_call(self, function_name: str, num_args: int):
         """Writes translated function call.
         """
         ret_label = self.__generate_label('RET')
-        asm = []
-        # Push return address and registers
-        for var in [ret_label, 'LCL', 'ARG', 'THIS', 'THAT']:
-            asm += [
+        # Push return address
+        self.asm += [
+            f'@{ret_label}',
+            'D=A',
+            '@SP',
+            'A=M',
+            'M=D',
+            'A=A+1',
+            'D=A',
+            '@SP',
+            'M=D',
+        ]
+        # Push registers
+        for var in ['LCL', 'ARG', 'THIS', 'THAT']:
+            self.asm += [
                 f'@{var}',
-                'D=A',
+                'D=M',
                 '@SP',
                 'A=M',
                 'M=D',
@@ -182,7 +197,7 @@ class CodeWriter:
                 '@SP',
                 'M=D',
             ]
-        asm += [
+        self.asm += [
             # Set ARG
             '@SP',
             'D=M',
@@ -203,12 +218,11 @@ class CodeWriter:
             # Set return label
             f'({ret_label})',
         ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def write_return(self):
         """Write translated return.
         """
-        asm = [
+        self.asm += [
             # Store old LCL
             '@LCL',
             'D=M',
@@ -237,7 +251,7 @@ class CodeWriter:
         ]
         # Restore THAT, THIS, ARG, and LCL
         for reg in ['THAT', 'THIS', 'ARG', 'LCL']:
-            asm += [
+            self.asm += [
                 '@R13',
                 'M=M-1',
                 'A=M',
@@ -246,22 +260,21 @@ class CodeWriter:
                 'M=D',
             ]
         # Jump to return address
-        asm += [
+        self.asm += [
             '@R14',
             'A=M',
             '0;JMP',
         ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def write_function(self, function_name: str, num_locals: int):
         """Write translated function declaration.
         """
-        asm = [
+        self.asm += [
             f'({function_name})',
         ]
         # Initialize locals
         for _ in range(num_locals):
-            asm += [
+            self.asm += [
                 '@SP',
                 'A=M',
                 'M=0',
@@ -269,7 +282,6 @@ class CodeWriter:
                 '@SP',
                 'M=D',
             ]
-        self.f.write('\n'.join(asm)+'\n')
 
     def __compile_unary_command(self, command: str) -> List[str]:
         if command == 'neg':
