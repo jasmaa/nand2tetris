@@ -134,10 +134,17 @@ class CodeWriter:
     def write_init(self):
         """Writes system init into beginning of ROM.
         """
+        # Set SP=256 and call `Sys.init` using `Sys.preinit` as a proxy
         self.asm = [
-            '@Sys.init',
+            '@256',
+            'D=A',
+            '@SP',
+            'M=D',
+            '@Sys.preinit',
             '0;JMP',
         ] + self.asm
+        self.write_function('Sys.preinit', 0)
+        self.write_call('Sys.init', 0)
 
     def write_label(self, label: str):
         """Writes translated label.
