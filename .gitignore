@@ -4,6 +4,7 @@
 !projects/05/*.hack
 
 projects/07/**/*.asm
+projects/08/**/*.asm
 
 /tools
 /lecture

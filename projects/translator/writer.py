@@ -4,15 +4,18 @@ from command import CommandType
 
 
 class CodeWriter:
-    """Translates VM code to Hack assembly
+    """Translates VM code to Hack assembly.
     """
 
     def __init__(self, fname: str, f: TextIOWrapper):
         self.fname = fname
         self.f = f
         self.label_counters = {}
+        self.curr_func_name = ''
 
     def write_arithmetic(self, command: str):
+        """Writes translated arithmetic instruction.
+        """
         asm = []
         if command in ['neg', 'not']:
             # Unary command: set M=x
@@ -43,6 +46,8 @@ class CodeWriter:
         self.f.write('\n'.join(asm)+'\n')
 
     def write_pushpop(self, command: CommandType, segment: str, index: int):
+        """Writes translated push or pop instruction.
+        """
         asm = []
 
         # Pushing constant
@@ -125,6 +130,145 @@ class CodeWriter:
                 'M=D',
             ]
 
+        self.f.write('\n'.join(asm)+'\n')
+
+    def write_label(self, label: str):
+        """Writes translated label.
+        """
+        asm = [
+            f'({self.curr_func_name}:{label})',
+        ]
+        self.f.write('\n'.join(asm)+'\n')
+
+    def write_goto(self, label: str):
+        """Writes translated goto.
+        """
+        asm = [
+            f'@{self.curr_func_name}:{label}',
+            '0;JMP',
+        ]
+        self.f.write('\n'.join(asm)+'\n')
+
+    def write_if(self, label: str):
+        """Writes translated if-goto.
+        """
+        asm = [
+            '@SP',
+            'D=M',
+            'M=D-1',
+            '@SP',
+            'A=M',
+            'D=M',
+            f'@{self.curr_func_name}:{label}',
+            'D;JNE',
+        ]
+        self.f.write('\n'.join(asm)+'\n')
+
+    def write_call(self, function_name: str, num_args: int):
+        """Writes translated function call.
+        """
+        ret_label = self.__generate_label('RET')
+        asm = []
+        # Push return address and registers
+        for var in [ret_label, 'LCL', 'ARG', 'THIS', 'THAT']:
+            asm += [
+                f'@{var}',
+                'D=A',
+                '@SP',
+                'A=M',
+                'M=D',
+                'A=A+1',
+                'D=A',
+                '@SP',
+                'M=D',
+            ]
+        asm += [
+            # Set ARG
+            '@SP',
+            'D=M',
+            '@5',
+            'D=D-A',
+            f'@{num_args}',
+            'D=D-A',
+            '@ARG',
+            'M=D',
+            # Set new LCL
+            '@SP',
+            'D=M',
+            '@LCL',
+            'M=D',
+            # Jump to function
+            f'@{function_name}',
+            '0;JMP',
+            # Set return label
+            f'({ret_label})',
+        ]
+        self.f.write('\n'.join(asm)+'\n')
+
+    def write_return(self):
+        """Write translated return.
+        """
+        asm = [
+            # Store old LCL
+            '@LCL',
+            'D=M',
+            '@R13',
+            'M=D',
+            # Store return address
+            '@5',
+            'A=D-A',
+            'D=M',
+            '@R14',
+            'M=D',
+            # Reposition return value
+            '@SP',
+            'A=M',
+            'A=A-1',
+            'D=M',
+            '@ARG',
+            'A=M',
+            'M=D',
+            # Reposition SP after return value
+            '@ARG',
+            'D=M',
+            '@SP',
+            'M=D',
+            'M=M+1',
+        ]
+        # Restore THAT, THIS, ARG, and LCL
+        for reg in ['THAT', 'THIS', 'ARG', 'LCL']:
+            asm += [
+                '@R13',
+                'M=M-1',
+                'A=M',
+                'D=M',
+                f'@{reg}',
+                'M=D',
+            ]
+        # Jump to return address
+        asm += [
+            '@R14',
+            'A=M',
+            '0;JMP',
+        ]
+        self.f.write('\n'.join(asm)+'\n')
+
+    def write_function(self, function_name: str, num_locals: int):
+        """Write translated function declaration.
+        """
+        asm = [
+            f'({function_name})',
+        ]
+        # Initialize locals
+        for _ in range(num_locals):
+            asm += [
+                '@SP',
+                'A=M',
+                'M=0',
+                'D=A+1',
+                '@SP',
+                'M=D',
+            ]
         self.f.write('\n'.join(asm)+'\n')
 
     def __compile_unary_command(self, command: str) -> List[str]:
