@@ -1,5 +1,9 @@
 *.out
+
 *.hack
 !projects/05/*.hack
+
+projects/07/**/*.asm
+
 /tools
 /lecture
