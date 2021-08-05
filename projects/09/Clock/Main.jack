@@ -1,0 +1,72 @@
+class Main {
+  function void main() {
+    var int hour, minute;
+    var int oldHour, oldMinute, oldSecond;
+    var string message;
+    var Clock clock;
+    var HandRenderer handRenderer;
+
+    // Query for current time
+    let hour = Keyboard.readInt("Enter current hour (1-12): ");
+    if ((hour < 1) | (hour > 12)) {
+      do Sys.error(1);
+    }
+    if (hour = 12) {
+      let hour = 0;
+    }
+    let minute = Keyboard.readInt("Enter current minute (0-59): ");
+    if ((minute < 0) | (minute > 59)) {
+      do Sys.error(1);
+    }
+
+    let clock = Clock.new(hour, minute, 0);
+    let handRenderer = HandRenderer.new();
+
+    do Screen.clearScreen();
+
+    // Draw base    
+    do BaseRenderer.draw();
+
+    // Draw message
+    do Screen.setColor(true);
+    do Output.moveCursor(22, 25);
+    do Output.printString("It's Reyn time!");
+
+    // Draw hands
+    do Screen.setColor(true);
+    do handRenderer.drawThin(clock.getSecond());
+    do handRenderer.drawBold(clock.getMinute());
+    do handRenderer.drawBolder(5*clock.getHour());
+
+    // Draw middle circle
+    do Screen.drawCircle(256, 128, 3);
+
+    while(true) {
+      let oldSecond = clock.getSecond();
+      let oldMinute = clock.getMinute();
+      let oldHour = clock.getHour();
+
+      do Sys.wait(1000);
+      do clock.tick();
+
+      // Erase old hands
+      do Screen.setColor(false);
+      do handRenderer.drawThin(oldSecond);
+      do handRenderer.drawBold(oldMinute);
+      do handRenderer.drawBolder(5*oldHour);
+
+      // Draw new hands
+      do Screen.setColor(true);
+      do handRenderer.drawThin(clock.getSecond());
+      do handRenderer.drawBold(clock.getMinute());
+      do handRenderer.drawBolder(5*clock.getHour());
+
+      // Draw middle circle
+      do Screen.drawCircle(256, 128, 3);
+    }
+
+    do clock.dispose();
+    do handRenderer.dispose();
+    return;
+  }
+}

@@ -1,0 +1,43 @@
+class Clock {
+  field int hour, minute, second;
+
+  constructor Clock new(int h, int m, int s) {
+    let hour = h;
+    let minute = m;
+    let second = s;
+    return this;
+  }
+
+  method void tick() {
+    let second = second + 1;
+    if (second = 60) {
+      let second = 0;
+      let minute = minute + 1;
+      if (minute = 60) {
+        let minute = 0;
+        let hour = hour + 1;
+        if (hour = 12) {
+          let hour = 0;
+        }
+      }
+    }
+    return;
+  }
+
+  method int getSecond() {
+    return second;
+  }
+
+  method int getMinute() {
+    return minute;
+  }
+
+  method int getHour() {
+    return hour;
+  }
+  
+  method void dispose() {
+    do Memory.deAlloc(this);
+    return;
+  }
+}

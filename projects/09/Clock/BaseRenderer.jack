@@ -1,0 +1,21 @@
+class BaseRenderer {
+  function void draw() {
+    // Draw face plate
+    do Screen.setColor(true);
+    do Screen.drawCircle(256, 128, 100);
+    do Screen.setColor(false);
+    do Screen.drawCircle(256, 128, 80);
+
+    // Draw numbers
+    do Screen.setColor(true);
+    do Output.moveCursor(5, 31);
+    do Output.printInt(12);
+    do Output.moveCursor(17, 31);
+    do Output.printInt(6);
+    do Output.moveCursor(11, 24);
+    do Output.printInt(9);
+    do Output.moveCursor(11, 40);
+    do Output.printInt(3);
+    return;
+  }
+}
