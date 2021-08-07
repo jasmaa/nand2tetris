@@ -1,0 +1,13 @@
+class Foo {
+	field int a, b;
+
+	constructor Foo new() {
+		let a = 5;
+		let b = 72;
+		return this;
+	}
+	
+	method int getA() {
+		return a;
+	}
+}

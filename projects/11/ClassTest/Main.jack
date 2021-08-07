@@ -1,0 +1,10 @@
+class Main {
+    function void main() {
+        var Foo foo;
+		var int a;
+        let foo = Foo.new();
+		let a = foo.getA();
+		do Output.printInt(a);
+        return;
+    }	
+}

@@ -105,8 +105,8 @@ class CompilationEngine:
         self.__symbol_table.start_subroutine()
 
         # Parse constructor/function/method kind
-        # TODO: take into account subroutine kind
         subroutine_kind = self.__tokenizer.keyword
+
         self.__tokenizer.advance()
 
         # Parse return type
@@ -123,6 +123,10 @@ class CompilationEngine:
             raise CompilerException('Expected valid identifier.')
         subroutine_name = f'{self.__class_name}.{self.__tokenizer.identifier}'
         self.__tokenizer.advance()
+
+        # Add dummy self as first parameter if method
+        if subroutine_kind == Keyword.METHOD:
+            self.__symbol_table.define('this', self.__class_name, IdentifierKind.ARGUMENT)
 
         # Parse parameter list
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '('):
@@ -147,6 +151,18 @@ class CompilationEngine:
 
         n_locals = self.__symbol_table.var_count(IdentifierKind.VAR)
         self.__writer.write_function(subroutine_name, n_locals)
+
+        if subroutine_kind == Keyword.CONSTRUCTOR:
+            # Allocate memory for object if constructor
+            n_fields = self.__symbol_table.var_count(IdentifierKind.FIELD)
+            self.__writer.write_push(Segment.CONST, n_fields)
+            self.__writer.write_call('Memory.alloc', 1)
+            self.__writer.write_pop(Segment.POINTER, 0)
+
+        elif subroutine_kind == Keyword.METHOD:
+            # Copy arg0 to pointer0
+            self.__writer.write_push(Segment.ARG, 0)
+            self.__writer.write_pop(Segment.POINTER, 0)
 
         # Parse statements
         self.compile_statements()
@@ -403,16 +419,19 @@ class CompilationEngine:
         self.__tokenizer.advance()
 
         if self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '(':
-            # Local call
+            # Internal call
             self.__tokenizer.advance()
 
-            n_args = self.compile_expression_list()
+            # Guaranteed to be a method. Push address of `this` stack.
+            self.__writer.write_push(Segment.POINTER, 0)
+            n_args = self.compile_expression_list() + 1
 
             if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ')'):
                 raise CompilerException('Expected symbol `)`.')
             self.__tokenizer.advance()
 
-            self.__writer.write_call(id_name, n_args)
+            subroutine_name = f'{self.__class_name}.{id_name}'
+            self.__writer.write_call(subroutine_name, n_args)
 
         elif self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '.':
             # External call
@@ -420,14 +439,25 @@ class CompilationEngine:
 
             if self.__tokenizer.token_type != TokenType.IDENTIFIER:
                 raise CompilerException('Expected valid identifier.')
-            subroutine_name = f'{id_name}.{self.__tokenizer.identifier}'
+            subroutine_name = self.__tokenizer.identifier
             self.__tokenizer.advance()
 
             if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '('):
                 raise CompilerException('Expected symbol `(`.')
             self.__tokenizer.advance()
 
-            n_args = self.compile_expression_list()
+            # Check subroutine type
+            v = self.__symbol_table.find(id_name)
+            if v == None:
+                # Not in symbol table, class name
+                subroutine_name = f'{id_name}.{subroutine_name}'
+                n_args = self.compile_expression_list()
+            else:
+                # Was in symbol table, var name
+                var_type, var_kind, var_idx = v
+                subroutine_name = f'{var_type}.{subroutine_name}'
+                self.__writer.write_push(kind2seg[var_kind], var_idx)
+                n_args = self.compile_expression_list() + 1
 
             if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ')'):
                 raise CompilerException('Expected symbol `)`.')
@@ -521,7 +551,7 @@ class CompilationEngine:
                 self.__writer.write_arithmetic(Command.NOT)
             elif self.__tokenizer.keyword == Keyword.THIS:
                 self.__writer.write_push(
-                    Segment.THIS, 0
+                    Segment.POINTER, 0
                 )
             self.__tokenizer.advance()
 
@@ -542,16 +572,19 @@ class CompilationEngine:
                 self.__tokenizer.advance()
 
             elif self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '(':
-                # Subroutine local call
+                # Subroutine internal call
                 self.__tokenizer.advance()
 
-                n_args = self.compile_expression_list()
+                # Guaranteed to be a method. Push address of `this` stack.
+                self.__writer.write_push(Segment.POINTER, 0)
+                n_args = self.compile_expression_list() + 1
 
                 if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ')'):
                     raise CompilerException('Expected symbol `)`.')
                 self.__tokenizer.advance()
 
-                self.__writer.write_call(id_name, n_args)
+                subroutine_name = f'{self.__class_name}.{id_name}'
+                self.__writer.write_call(subroutine_name, n_args)
 
             elif self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '.':
                 # Subroutine external call
@@ -559,14 +592,25 @@ class CompilationEngine:
 
                 if self.__tokenizer.token_type != TokenType.IDENTIFIER:
                     raise CompilerException('Expected valid identifier.')
-                subroutine_name = f'{id_name}.{self.__tokenizer.identifier}'
+                subroutine_name = self.__tokenizer.identifier
                 self.__tokenizer.advance()
 
                 if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '('):
                     raise CompilerException('Expected symbol `(`.')
                 self.__tokenizer.advance()
 
-                n_args = self.compile_expression_list()
+                # Check subroutine type
+                v = self.__symbol_table.find(id_name)
+                if v == None:
+                    # Not in symbol table, class name
+                    subroutine_name = f'{id_name}.{subroutine_name}'
+                    n_args = self.compile_expression_list()
+                else:
+                    # Was in symbol table, var name
+                    var_type, var_kind, var_idx = v
+                    subroutine_name = f'{var_type}.{subroutine_name}'
+                    self.__writer.write_push(kind2seg[var_kind], var_idx)
+                    n_args = self.compile_expression_list() + 1
 
                 if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ')'):
                     raise CompilerException('Expected symbol `)`.')
