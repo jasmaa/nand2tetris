@@ -7,7 +7,6 @@ from engine import CompilationEngine
 def compile(path: str, in_fnames: List[str]):
     """Translate list of Jack files in directory `path` to XML files.
     """
-
     for fname in in_fnames:
         in_path = os.path.join(path, f'{fname}.jack')
         with open(in_path, 'r') as in_f:

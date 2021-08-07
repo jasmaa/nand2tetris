@@ -18,7 +18,6 @@ class CompilationEngine:
     def compile_class(self):
         """Compiles class.
         """
-
         if not (self.__tokenizer.token_type == TokenType.KEYWORD and self.__tokenizer.keyword == Keyword.CLASS):
             raise CompilerException('Expected keyword `class`.')
         self.__out_f.write('<class>\n')
@@ -55,7 +54,6 @@ class CompilationEngine:
     def compile_class_var_dec(self):
         """Compiles class variables declaration.
         """
-
         self.__out_f.write('<classVarDec>\n')
 
         # Parse static/field class
@@ -101,7 +99,6 @@ class CompilationEngine:
     def compile_subroutine(self):
         """Compiles subroutine.
         """
-
         self.__out_f.write('<subroutineDec>\n')
 
         # Parse static/field class
@@ -166,7 +163,6 @@ class CompilationEngine:
     def compile_parameter_list(self):
         """Compiles parameter list.
         """
-
         self.__out_f.write('<parameterList>\n')
 
         if self.__tokenizer.token_type == TokenType.KEYWORD and self.__tokenizer.keyword in [Keyword.INT, Keyword.CHAR, Keyword.BOOLEAN, Keyword.VOID] \
@@ -212,7 +208,6 @@ class CompilationEngine:
     def compile_var_dec(self):
         """Compiles variable declaration.
         """
-
         self.__out_f.write('<varDec>\n')
         self.__out_f.write('<keyword> var </keyword>\n')
         self.__tokenizer.advance()
@@ -280,7 +275,6 @@ class CompilationEngine:
     def compile_let(self):
         """Compiles let statement.
         """
-
         self.__out_f.write('<letStatement>\n')
         self.__out_f.write('<keyword> let </keyword>\n')
         self.__tokenizer.advance()
@@ -322,7 +316,6 @@ class CompilationEngine:
     def compile_if(self):
         """Compiles if statement.
         """
-
         self.__out_f.write('<ifStatement>\n')
         self.__out_f.write('<keyword> if </keyword>\n')
         self.__tokenizer.advance()
@@ -376,7 +369,6 @@ class CompilationEngine:
     def compile_while(self):
         """Compiles while statement.
         """
-
         self.__out_f.write('<whileStatement>\n')
         self.__out_f.write('<keyword> while </keyword>\n')
         self.__tokenizer.advance()
@@ -412,7 +404,6 @@ class CompilationEngine:
     def compile_do(self):
         """Compiles do statement.
         """
-
         self.__out_f.write('<doStatement>\n')
         self.__out_f.write('<keyword> do </keyword>\n')
         self.__tokenizer.advance()
@@ -473,7 +464,6 @@ class CompilationEngine:
     def compile_return(self):
         """Compile return statement.
         """
-
         self.__out_f.write('<returnStatement>\n')
         self.__out_f.write('<keyword> return </keyword>\n')
         self.__tokenizer.advance()
@@ -492,7 +482,6 @@ class CompilationEngine:
     def compile_expression(self):
         """Compiles expression.
         """
-
         self.__out_f.write('<expression>\n')
 
         self.compile_term()
@@ -519,7 +508,6 @@ class CompilationEngine:
     def compile_term(self):
         """Compiles term.
         """
-
         self.__out_f.write('<term>\n')
 
         if self.__tokenizer.token_type == TokenType.INT_CONST:
@@ -626,7 +614,6 @@ class CompilationEngine:
     def compile_expression_list(self):
         """Compiles expression list.
         """
-
         self.__out_f.write('<expressionList>\n')
 
         # Parse expression list if exists
