@@ -7,6 +7,7 @@ projects/07/**/*.asm
 projects/08/**/*.asm
 
 projects/09/**/*.vm
+projects/11/**/*.vm
 
 /tools
 /lecture

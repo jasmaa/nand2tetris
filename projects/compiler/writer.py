@@ -38,7 +38,7 @@ class VMWriter:
     def write_push(self, segment: Segment, idx: int):
         """Writes push.
         """
-        self.__outf.write(f'push {segment} {idx}\n')
+        self.__out_f.write(f'push {segment} {idx}\n')
 
     def write_pop(self, segment: Segment, idx: int):
         """Writes pop.
@@ -69,6 +69,11 @@ class VMWriter:
         """Writes function call.
         """
         self.__out_f.write(f'call {name} {n_args}\n')
+
+    def write_function(self, name: str, n_locals: int):
+        """Writes function declaration.
+        """
+        self.__out_f.write(f'function {name} {n_locals}\n')
 
     def write_return(self):
         """Writes return.
