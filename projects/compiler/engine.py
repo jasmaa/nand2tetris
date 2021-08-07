@@ -8,6 +8,14 @@ class CompilerException(Exception):
     pass
 
 
+kind2seg = {
+    IdentifierKind.STATIC: Segment.STATIC,
+    IdentifierKind.FIELD: Segment.THIS,
+    IdentifierKind.ARGUMENT: Segment.ARG,
+    IdentifierKind.VAR: Segment.LOCAL,
+}
+
+
 class CompilationEngine:
     """Compilation engine that compiles Jack code to VM code.
     """
@@ -17,6 +25,8 @@ class CompilationEngine:
         self.__writer = VMWriter(out_f)
         self.__symbol_table = SymbolTable()
         self.__class_name = None
+        self.__return_type = None
+        self.__labels = {}
         self.__tokenizer = Tokenizer(in_f)
         self.__tokenizer.advance()
 
@@ -91,15 +101,19 @@ class CompilationEngine:
     def compile_subroutine(self):
         """Compiles subroutine declaration.
         """
+        # Reset symbol table
+        self.__symbol_table.start_subroutine()
+
         # Parse constructor/function/method kind
+        # TODO: take into account subroutine kind
         subroutine_kind = self.__tokenizer.keyword
         self.__tokenizer.advance()
 
         # Parse return type
         if self.__tokenizer.token_type == TokenType.KEYWORD and self.__tokenizer.keyword in [Keyword.INT, Keyword.CHAR, Keyword.BOOLEAN, Keyword.VOID]:
-            return_type = self.__tokenizer.keyword
+            self.__return_type = self.__tokenizer.keyword
         elif self.__tokenizer.token_type == TokenType.IDENTIFIER:
-            return_type = self.__tokenizer.identifier
+            self.__return_type = self.__tokenizer.identifier
         else:
             raise CompilerException('Expected valid type or void.')
         self.__tokenizer.advance()
@@ -121,10 +135,8 @@ class CompilationEngine:
             raise CompilerException('Expected symbol `)`.')
         self.__tokenizer.advance()
 
-        n_locals = self.__symbol_table.var_count(IdentifierKind.VAR)
-        self.__writer.write_function(subroutine_name, n_locals)
-
         # Parse subroutine body
+
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '{'):
             raise CompilerException('Expected symbol `{`.')
         self.__tokenizer.advance()
@@ -132,6 +144,9 @@ class CompilationEngine:
         # Parse variable declaration if it exists
         while self.__tokenizer.token_type == TokenType.KEYWORD and self.__tokenizer.keyword == Keyword.VAR:
             self.compile_var_dec()
+
+        n_locals = self.__symbol_table.var_count(IdentifierKind.VAR)
+        self.__writer.write_function(subroutine_name, n_locals)
 
         # Parse statements
         self.compile_statements()
@@ -160,7 +175,8 @@ class CompilationEngine:
             self.__tokenizer.advance()
 
             self.__symbol_table.define(
-                var_name, var_type, IdentifierKind.ARGUMENT)
+                var_name, var_type, IdentifierKind.ARGUMENT
+            )
 
             # Parse additional params
             while self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ',':
@@ -178,7 +194,8 @@ class CompilationEngine:
                 self.__tokenizer.advance()
 
                 self.__symbol_table.define(
-                    var_name, var_type, IdentifierKind.ARGUMENT)
+                    var_name, var_type, IdentifierKind.ARGUMENT
+                )
 
     def compile_var_dec(self):
         """Compiles variable declaration.
@@ -241,15 +258,12 @@ class CompilationEngine:
     def compile_let(self):
         """Compiles let statement.
         """
-        self.__out_f.write('<letStatement>\n')
-        self.__out_f.write('<keyword> let </keyword>\n')
         self.__tokenizer.advance()
 
         # Parse name
         if self.__tokenizer.token_type != TokenType.IDENTIFIER:
             raise CompilerException('Expected valid identifier.')
-        subroutine_name = self.__tokenizer.identifier
-        self.__out_f.write(f'<identifier> {subroutine_name} </identifier>\n')
+        var_name = self.__tokenizer.identifier
         self.__tokenizer.advance()
 
         # Parse indexing if possible
@@ -266,7 +280,6 @@ class CompilationEngine:
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '='):
             raise CompilerException('Expected symbol `=`.')
-        self.__out_f.write('<symbol> = </symbol>\n')
         self.__tokenizer.advance()
 
         # Parse let body
@@ -274,21 +287,24 @@ class CompilationEngine:
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ';'):
             raise CompilerException('Expected symbol `;`.')
-        self.__out_f.write('<symbol> ; </symbol>\n')
         self.__tokenizer.advance()
 
-        self.__out_f.write('</letStatement>\n')
+        v = self.__symbol_table.find(var_name)
+        if v == None:
+            raise CompilerException(f'No declaration found for `{var_name}`.')
+        var_type, var_kind, var_idx = v
+        self.__writer.write_pop(kind2seg[var_kind], var_idx)
 
     def compile_if(self):
         """Compiles if statement.
         """
-        self.__out_f.write('<ifStatement>\n')
-        self.__out_f.write('<keyword> if </keyword>\n')
+        else_label = self.__generate_label('ELSE')
+        endif_label = self.__generate_label('ENDIF')
+
         self.__tokenizer.advance()
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '('):
             raise CompilerException('Expected symbol `(`.')
-        self.__out_f.write('<symbol> ( </symbol>\n')
         self.__tokenizer.advance()
 
         # Parse conditional
@@ -296,12 +312,14 @@ class CompilationEngine:
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ')'):
             raise CompilerException('Expected symbol `)`.')
-        self.__out_f.write('<symbol> ) </symbol>\n')
         self.__tokenizer.advance()
+
+        self.__writer.write_arithmetic(Command.NOT)
+
+        self.__writer.write_if(else_label)
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '{'):
             raise CompilerException('Expected symbol `{`.')
-        self.__out_f.write('<symbol> { </symbol>\n')
         self.__tokenizer.advance()
 
         # Parse if body
@@ -309,17 +327,18 @@ class CompilationEngine:
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '}'):
             raise CompilerException('Expected symbol `}`.')
-        self.__out_f.write('<symbol> } </symbol>\n')
         self.__tokenizer.advance()
+
+        self.__writer.write_goto(endif_label)
+
+        self.__writer.write_label(else_label)
 
         # Parse else if exists
         if self.__tokenizer.token_type == TokenType.KEYWORD and self.__tokenizer.keyword == Keyword.ELSE:
-            self.__out_f.write('<keyword> else </keyword>\n')
             self.__tokenizer.advance()
 
             if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '{'):
                 raise CompilerException('Expected symbol `{`.')
-            self.__out_f.write('<symbol> { </symbol>\n')
             self.__tokenizer.advance()
 
             # Parse else body
@@ -327,21 +346,22 @@ class CompilationEngine:
 
             if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '}'):
                 raise CompilerException('Expected symbol `}`.')
-            self.__out_f.write('<symbol> } </symbol>\n')
             self.__tokenizer.advance()
 
-        self.__out_f.write('</ifStatement>\n')
+        self.__writer.write_label(endif_label)
 
     def compile_while(self):
         """Compiles while statement.
         """
-        self.__out_f.write('<whileStatement>\n')
-        self.__out_f.write('<keyword> while </keyword>\n')
+        loop_label = self.__generate_label('LOOP')
+        endloop_label = self.__generate_label('ENDLOOP')
+
+        self.__writer.write_label(loop_label)
+
         self.__tokenizer.advance()
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '('):
             raise CompilerException('Expected symbol `(`.')
-        self.__out_f.write('<symbol> ( </symbol>\n')
         self.__tokenizer.advance()
 
         # Parse conditional
@@ -349,12 +369,14 @@ class CompilationEngine:
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ')'):
             raise CompilerException('Expected symbol `)`.')
-        self.__out_f.write('<symbol> ) </symbol>\n')
         self.__tokenizer.advance()
+
+        self.__writer.write_arithmetic(Command.NOT)
+
+        self.__writer.write_if(endloop_label)
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '{'):
             raise CompilerException('Expected symbol `{`.')
-        self.__out_f.write('<symbol> { </symbol>\n')
         self.__tokenizer.advance()
 
         # Parse loop body
@@ -362,10 +384,11 @@ class CompilationEngine:
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '}'):
             raise CompilerException('Expected symbol `}`.')
-        self.__out_f.write('<symbol> } </symbol>\n')
         self.__tokenizer.advance()
 
-        self.__out_f.write('</whileStatement>\n')
+        self.__writer.write_goto(loop_label)
+
+        self.__writer.write_label(endloop_label)
 
     def compile_do(self):
         """Compiles do statement.
@@ -435,6 +458,10 @@ class CompilationEngine:
             raise CompilerException('Expected symbol `;`.')
         self.__tokenizer.advance()
 
+        # Return 0 if void return type
+        if self.__return_type == Keyword.VOID:
+            self.__writer.write_push(Segment.CONST, 0)
+
         self.__writer.write_return()
 
     def compile_expression(self):
@@ -487,11 +514,11 @@ class CompilationEngine:
                 self.__writer.write_push(
                     Segment.CONST, 0
                 )
-            elif self.__tokenizer.keyword == Keyword.FALSE:
+            elif self.__tokenizer.keyword == Keyword.TRUE:
                 self.__writer.write_push(
                     Segment.CONST, 0
                 )
-                self.__writer.write_arithmetic(Command.NEG)
+                self.__writer.write_arithmetic(Command.NOT)
             elif self.__tokenizer.keyword == Keyword.THIS:
                 self.__writer.write_push(
                     Segment.THIS, 0
@@ -549,7 +576,13 @@ class CompilationEngine:
 
             else:
                 # Variable access
-                pass
+                var_name = id_name
+                v = self.__symbol_table.find(var_name)
+                if v == None:
+                    raise CompilerException(
+                        f'No declaration found for `{var_name}`.')
+                var_type, var_kind, var_idx = v
+                self.__writer.write_push(kind2seg[var_kind], var_idx)
 
         elif self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '(':
             # Parenthesis-wrapped expression
@@ -563,13 +596,15 @@ class CompilationEngine:
 
         elif self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol in '-~':
             # Unary operation
-            if self.__tokenizer.symbol == '-':
-                self.__writer.write_arithmetic(Command.NEG)
-            elif self.__tokenizer.symbol == '~':
-                self.__writer.write_arithmetic(Command.NOT)
+            op = self.__tokenizer.symbol
             self.__tokenizer.advance()
 
             self.compile_term()
+
+            if op == '-':
+                self.__writer.write_arithmetic(Command.NEG)
+            elif op == '~':
+                self.__writer.write_arithmetic(Command.NOT)
 
     def compile_expression_list(self) -> int:
         """Compiles expression list. Returns number of arguments encountered.
@@ -596,3 +631,10 @@ class CompilationEngine:
                 n_args += 1
 
         return n_args
+
+    def __generate_label(self, prefix: str = 'LBL') -> str:
+        if prefix in self.__labels:
+            self.__labels[prefix] += 1
+        else:
+            self.__labels[prefix] = 0
+        return f'{prefix}_{self.__labels[prefix]}'

@@ -8,6 +8,7 @@ class Segment(str, Enum):
     CONST = 'constant'
     ARG = 'argument'
     LOCAL = 'local'
+    STATIC = 'static'
     THIS = 'this'
     THAT = 'that'
     POINTER = 'pointer'
@@ -18,7 +19,7 @@ class Command(str, Enum):
     """VM arithmetic command.
     """
     ADD = 'add'
-    SUB = 'add'
+    SUB = 'sub'
     NEG = 'neg'
     EQ = 'eq'
     GT = 'gt'
