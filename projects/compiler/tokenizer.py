@@ -72,55 +72,75 @@ class Tokenizer:
             is_comment = self.__remove_comment()
             self.__text = self.__text.strip()
 
-        # Detect keyword
+        # Detect all possible
+        keyword = self.__detect_keyword()
+        symbol = self.__detect_symbol()
+        int_val = self.__detect_int()
+        string_val = self.__detect_string()
+        identifier = self.__detect_identifier()
+
+        longest = max(keyword, symbol, int_val,
+                      string_val, identifier, key=len)
+
+        # Prefer longest text matched
+        if longest == keyword:
+            self.token_type = TokenType.KEYWORD
+            self.keyword = keyword
+            self.__text = self.__text[len(longest):]
+        elif longest == symbol:
+            self.token_type = TokenType.SYMBOL
+            self.symbol = symbol
+            self.__text = self.__text[len(longest):]
+        elif longest == int_val:
+            self.token_type = TokenType.INT_CONST
+            self.int_val = int_val
+            self.__text = self.__text[len(longest):]
+        elif longest == string_val:
+            self.token_type = TokenType.STRING_CONST
+            self.string_val = string_val
+            self.__text = self.__text[len(longest)+2:]
+        elif longest == identifier:
+            self.token_type = TokenType.IDENTIFIER
+            self.identifier = identifier
+            self.__text = self.__text[len(longest):]
+
+    def __detect_keyword(self) -> str:
         for keyword in Keyword:
             if len(self.__text) >= len(keyword) and self.__text[:len(keyword)] == keyword:
-                self.token_type = TokenType.KEYWORD
-                self.keyword = keyword
-                self.__text = self.__text[len(keyword):]
-                return
+                return keyword
+        return ''
 
-        # Detect symbol
+    def __detect_symbol(self) -> str:
         if len(self.__text) >= 1 and self.__text[0] in '{}()[].,;+-*/&|<>=~':
-            self.token_type = TokenType.SYMBOL
-            self.symbol = self.__text[0]
-            self.__text = self.__text[1:]
-            return
+            return self.__text[0]
+        return ''
 
+    def __detect_int(self) -> str:
         p = 0
         acc = ''
-
-        # Detect int
         while p < len(self.__text) and self.__text[p].isdigit():
             acc += self.__text[p]
             p += 1
-        if p != 0:
-            self.token_type = TokenType.INT_CONST
-            self.int_val = int(acc)
-            self.__text = self.__text[p:]
-            return
+        return acc
 
-        # Detect string
+    def __detect_string(self) -> str:
+        p = 0
+        acc = ''
         if self.__text[p] == '"':
             p += 1
             while p < len(self.__text) and self.__text[p] != '"':
                 acc += self.__text[p]
                 p += 1
             p += 1
-            self.token_type = TokenType.STRING_CONST
-            self.string_val = acc
-            self.__text = self.__text[p:]
-            return
+        return acc
 
-        # Detect identifier
+    def __detect_identifier(self) -> str:
+        p = 0
+        acc = ''
         while p < len(self.__text) and self.__text[p].isidentifier():
             acc += self.__text[p]
             p += 1
-        if p != 0:
-            self.token_type = TokenType.IDENTIFIER
-            self.identifier = acc
-            self.__text = self.__text[p:]
-            return
+        return acc
 
     def __remove_comment(self) -> bool:
         # Remove single-line comment

@@ -294,7 +294,7 @@ class CompilationEngine:
                 raise CompilerException('Expected symbol `]`.')
             self.__tokenizer.advance()
 
-            is_indexing = True            
+            is_indexing = True
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '='):
             raise CompilerException('Expected symbol `=`.')
@@ -321,12 +321,14 @@ class CompilationEngine:
             self.__writer.write_pop(Segment.POINTER, 1)
             self.__writer.write_push(Segment.TEMP, 0)
             self.__writer.write_pop(Segment.THAT, 0)
-        
+
         else:
             # Not indexing, load value into variable
             v = self.__symbol_table.find(var_name)
             if v == None:
-                raise CompilerException(f'No declaration found for `{var_name}`.')
+                raise CompilerException(
+                    f'No declaration found for `{var_name}`.'
+                )
             var_type, var_kind, var_idx = v
             self.__writer.write_pop(kind2seg[var_kind], var_idx)
 
