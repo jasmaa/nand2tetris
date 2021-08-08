@@ -126,7 +126,8 @@ class CompilationEngine:
 
         # Add dummy self as first parameter if method
         if subroutine_kind == Keyword.METHOD:
-            self.__symbol_table.define('this', self.__class_name, IdentifierKind.ARGUMENT)
+            self.__symbol_table.define(
+                'this', self.__class_name, IdentifierKind.ARGUMENT)
 
         # Parse parameter list
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '('):
@@ -282,17 +283,18 @@ class CompilationEngine:
         var_name = self.__tokenizer.identifier
         self.__tokenizer.advance()
 
-        # Parse indexing if possible
+        # Parse array indexing if possible
+        is_indexing = False
         if self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '[':
-            self.__out_f.write('<symbol> [ </symbol>\n')
             self.__tokenizer.advance()
 
             self.compile_expression()
 
             if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ']'):
                 raise CompilerException('Expected symbol `]`.')
-            self.__out_f.write('<symbol> ] </symbol>\n')
             self.__tokenizer.advance()
+
+            is_indexing = True            
 
         if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '='):
             raise CompilerException('Expected symbol `=`.')
@@ -305,11 +307,28 @@ class CompilationEngine:
             raise CompilerException('Expected symbol `;`.')
         self.__tokenizer.advance()
 
-        v = self.__symbol_table.find(var_name)
-        if v == None:
-            raise CompilerException(f'No declaration found for `{var_name}`.')
-        var_type, var_kind, var_idx = v
-        self.__writer.write_pop(kind2seg[var_kind], var_idx)
+        if is_indexing:
+            # Indexing, load value into array
+            v = self.__symbol_table.find(var_name)
+            if v == None:
+                raise CompilerException(
+                    f'`No declaration for {var_name}` was found.'
+                )
+            var_type, var_kind, var_idx = v
+            self.__writer.write_pop(Segment.TEMP, 0)
+            self.__writer.write_push(kind2seg[var_kind], var_idx)
+            self.__writer.write_arithmetic(Command.ADD)
+            self.__writer.write_pop(Segment.POINTER, 1)
+            self.__writer.write_push(Segment.TEMP, 0)
+            self.__writer.write_pop(Segment.THAT, 0)
+        
+        else:
+            # Not indexing, load value into variable
+            v = self.__symbol_table.find(var_name)
+            if v == None:
+                raise CompilerException(f'No declaration found for `{var_name}`.')
+            var_type, var_kind, var_idx = v
+            self.__writer.write_pop(kind2seg[var_kind], var_idx)
 
     def compile_if(self):
         """Compiles if statement.
@@ -532,10 +551,13 @@ class CompilationEngine:
 
         elif self.__tokenizer.token_type == TokenType.STRING_CONST:
             # String constant
-            self.__writer.write_call(
-                'String.new', len(self.__tokenizer.string_val))
+            self.__writer.write_push(
+                Segment.CONST, len(self.__tokenizer.string_val)
+            )
+            self.__writer.write_call('String.new', 1)
             for c in self.__tokenizer.string_val:
-                self.__writer.write_call('String.appendChar', ord(c))
+                self.__writer.write_push(Segment.CONST, ord(c))
+                self.__writer.write_call('String.appendChar', 2)
             self.__tokenizer.advance()
 
         elif self.__tokenizer.token_type == TokenType.KEYWORD and self.__tokenizer.keyword in [Keyword.TRUE, Keyword.FALSE, Keyword.NULL, Keyword.THIS]:
@@ -561,15 +583,25 @@ class CompilationEngine:
 
             if self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '[':
                 # Array indexing
-                self.__out_f.write('<symbol> [ </symbol>\n')
                 self.__tokenizer.advance()
 
                 self.compile_expression()
 
                 if not (self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == ']'):
                     raise CompilerException('Expected symbol `]`.')
-                self.__out_f.write('<symbol> ] </symbol>\n')
                 self.__tokenizer.advance()
+
+                # Point to target locatioin and push value
+                v = self.__symbol_table.find(id_name)
+                if v == None:
+                    raise CompilerException(
+                        f'`No declaration for {id_name}` was found.'
+                    )
+                var_type, var_kind, var_idx = v
+                self.__writer.write_push(kind2seg[var_kind], var_idx)
+                self.__writer.write_arithmetic(Command.ADD)
+                self.__writer.write_pop(Segment.POINTER, 1)
+                self.__writer.write_push(Segment.THAT, 0)
 
             elif self.__tokenizer.token_type == TokenType.SYMBOL and self.__tokenizer.symbol == '(':
                 # Subroutine internal call
