@@ -8,13 +8,27 @@
  * Note: Jack compilers implement multiplication and division using OS method calls.
  */
 class Math {
+    static Array twoToThe;
 
     /** Initializes the library. */
     function void init() {
+        var int j;
+        let j = 1;
+        let twoToThe = Array.new(16);
+        let twoToThe[0] = 1;
+        while (j < 16) {
+            let twoToThe[j] = twoToThe[j-1] + twoToThe[j-1];
+            let j = j + 1;
+        }
+        return;
     }
 
     /** Returns the absolute value of x. */
     function int abs(int x) {
+        if (x < 0) {
+            return -x;
+        }
+        return x;
     }
 
     /** Returns the product of x and y. 
@@ -23,6 +37,18 @@ class Math {
      *  the Jack expressions x*y and multiply(x,y) return the same value.
      */
     function int multiply(int x, int y) {
+        var int sum, shiftedX, j;
+        let sum = 0;
+        let shiftedX = x;
+        let j = 0;
+        while (j < 16) {
+            if (~((twoToThe[j] & y) = 0)) {
+                let sum = sum + shiftedX;
+            }
+            let shiftedX = shiftedX + shiftedX;
+            let j = j + 1;
+        }
+        return sum;
     }
 
     /** Returns the integer part of x/y.
@@ -31,17 +57,75 @@ class Math {
      *  the Jack expressions x/y and divide(x,y) return the same value.
      */
     function int divide(int x, int y) {
+        var int q;
+        var boolean isNeg;
+
+        let isNeg = false;
+        if (((x > 0) & (y < 0)) | ((x < 0) & (y > 0))) {
+            let isNeg = true;
+        }
+
+        let x = Math.abs(x);
+        let y = Math.abs(y);
+        if (y > x) {
+            return 0;
+        }
+        
+        // Set q=0 on overflow since y will be larger than largest possible int on machine
+        if (y+y < 0) {
+            let q = 0;
+        } else {
+            let q = Math.divide(x, y+y);
+        }
+
+        if ((x - ((q*y)+(q*y))) < y) {
+            if (isNeg) {
+                return -(q+q);
+            }
+            return q+q;
+        }
+        if (isNeg) {
+            return -(q+q+1);
+        }
+        return q+q+1;
     }
 
     /** Returns the integer part of the square root of x. */
     function int sqrt(int x) {
+        var int low, high, med, sq;
+        let low = 0;
+        let high = 181;
+        while (low < high) {
+            let med = (low + high) / 2;
+            let sq = med * med;
+
+            // Short-circuit if found
+            if (sq = x) {
+                return sq;
+            }
+            // Otherwise conintue searching
+            if (sq > x) {
+                let high = med - 1;
+            } else {
+                let low = med + 1;
+            }
+        }
+        return low;
     }
 
     /** Returns the greater number. */
     function int max(int a, int b) {
+        if (a > b) {
+            return a;
+        }
+        return b;
     }
 
     /** Returns the smaller number. */
     function int min(int a, int b) {
+        if (a < b) {
+            return a;
+        }
+        return b;
     }
 }
