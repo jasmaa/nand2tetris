@@ -28,7 +28,7 @@ class String {
     /** Disposes this string. */
     method void dispose() {
         if (maxLen > 0) {
-            do Array.dispose(arr);
+            do arr.dispose();
         }
         return;
     }

@@ -62,7 +62,7 @@ class Screen {
     /** Draws a line from pixel (x1,y1) to pixel (x2,y2), using the current color. */
     function void drawLine(int x1, int y1, int x2, int y2) {
         var int a, b, dx, dy, adyMinusbdx;
-        var boolean isDxNeg, isDyNeg;
+        var boolean isDxNeg, isDyNeg, isDrawing;
         let a = 0;
         let b = 0;
         let dx = x2 - x1;
@@ -81,7 +81,12 @@ class Screen {
             let dy = -dy;
         }
 
-        while ((a < dx) | (b < dy)) {
+        let isDrawing = true;
+        while (isDrawing) {
+            if (~(a < dx) & ~(b < dy)) {
+                let isDrawing = false;
+            }
+
             if (isDxNeg & isDyNeg) {
                 do Screen.drawPixel(x1 - a, y1 - b);
             } else {
@@ -96,7 +101,9 @@ class Screen {
                 }
             }
 
-            if (adyMinusbdx < 0) {
+            // Update a and b
+            // Always default to a++ if dy == 0
+            if ((dy = 0) | (adyMinusbdx < 0)) {
                 let a = a + 1;
                 let adyMinusbdx = adyMinusbdx + dy;
             } else {
