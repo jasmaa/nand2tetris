@@ -10,12 +10,16 @@
  */ 
 class Memory {
     static Array memory;
-    static int pointer;
+    static int freeList;
 
     /** Initializes the class. */
     function void init() {
         let memory = 0;
-        let pointer = 2048;
+
+        // Init free list with entire heap as first block
+        let freeList = 2050;                // freeList = heapBase + 2
+        let memory[freeList-1] = 14334;     // freeList.length = heapEnd - (heapBase+2)
+        let memory[freeList-2] = -1;        // freeList.next = null
         return;
     }
 
@@ -33,15 +37,62 @@ class Memory {
     /** Finds an available RAM block of the given size and returns
      *  a reference to its base address. */
     function int alloc(int size) {
-        var int temp;
-        let temp = pointer;
-        let pointer = pointer + size;
-        return temp;
+        var int curr, prev, tempAddr, tempLen, tempNext;
+        let prev = -1;
+        let curr = freeList;
+
+        // Search for suitable block using first-fit
+        while (~(curr = -1) & memory[curr-1] < size) {
+            let prev = curr;
+            let curr = memory[curr-2];
+        }
+
+        // End of list, no more memory
+        if (curr = -1) {
+            return -1;
+        }
+
+        // Save old values
+        let tempAddr = curr;
+        let tempLen = memory[curr-1];
+        let tempNext = memory[curr-2];
+
+        // Set values for allocated block
+        let memory[curr-1] = size;
+        let memory[curr-2] = null;
+
+        // Allocate memory and update values
+        let curr = curr + (size+2);
+        let memory[curr-1] = tempLen - (size+2);
+        let memory[curr-2] = tempNext;
+
+        if (prev = -1) {
+            // Update freeList if modifying head
+            let freeList = curr;
+        } else {
+            // Otherwise, update prev.next
+            let memory[prev-2] = curr;
+        }
+
+        return tempAddr;
     }
 
     /** De-allocates the given object (cast as an array) by making
      *  it available for future allocations. */
     function void deAlloc(Array o) {
+        var int curr, prev;
+
+        // Find current tail
+        let prev = -1;
+        let curr = freeList;
+        while (~(curr = -1)) {
+            let prev = curr;
+            let curr = memory[curr-2];
+        }
+
+        // Append to list
+        let memory[prev-2] = o;
+        let memory[o-2] = -1;
         return;
     }    
 }
